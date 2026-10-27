@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Windows 11 電腦使用時間與健康休息提醒工具</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --win-bg: rgba(22, 27, 39, 0.95);
+      --border: rgba(255, 255, 255, 0.08);
+      --card-bg: rgba(15, 23, 42, 0.6);
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-subtle: #64748b;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --success: #10b981;
+      --success-hover: #059669;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: radial-gradient(circle at 50% 120%, #1e1b4b 0%, #090d16 60%, #030712 100%);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      user-select: none;
+    }
+
+    /* 頂部快捷模擬測試列 */
+    .sim-bar {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+      padding: 6px 16px;
+      font-size: 0.75rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      z-index: 40;
+    }
+
+    .sim-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .sim-btn {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .sim-btn:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+    .sim-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+    /* 主桌面視窗區 */
+    .desktop-area {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      position: relative;
+    }
+
+    .win11-window {
+      width: 100%;
+      max-width: 480px;
+      background: var(--win-bg);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.05);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Windows 11 標題列 */
+    .win11-titlebar {
+      height: 38px;
+      background: rgba(255, 255, 255, 0.03);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 4px 0 14px;
+    }
+
+    .win11-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .win11-icon {
+      width: 14px;
+      height: 14px;
+      background: #3b82f6;
+      border-radius: 3px;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.5px;
+      padding: 2px;
+    }
+
+    .win11-icon div { background: #fff; border-radius: 0.5px; }
+
+    .win11-actions { display: flex; height: 100%; }
+
+    .win11-btn {
+      width: 44px;
+      height: 100%;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+      transition: background 0.15s ease;
+    }
+
+    .win11-btn:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+    .win11-btn.close:hover { background: #e11d48; color: #fff; }
+
+    /* 視窗主內容 */
+    .win11-body {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .app-name { font-size: 0.95rem; font-weight: 700; color: #fff; }
+
+    .badge-status {
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      transition: all 0.2s ease;
+    }
+
+    /* 計時卡片 */
+    .timer-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .timer-header { display: flex; justify-content: space-between; align-items: baseline; }
+    .timer-title { font-size: 0.78rem; color: var(--text-muted); font-weight: 500; }
+    .timer-target { font-size: 0.75rem; font-family: 'JetBrains Mono', monospace; color: var(--text-subtle); }
+    .timer-main { display: flex; justify-content: space-between; align-items: baseline; }
+
+    .time-digits {
+      font-size: 2.6rem;
+      font-weight: 800;
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: -0.04em;
+      color: #fff;
+      line-height: 1;
+    }
+
+    .time-rem-box { text-align: right; }
+    .time-rem-label { font-size: 0.7rem; color: var(--text-muted); }
+    .time-rem-digits { font-size: 1rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; color: #60a5fa; }
+
+    .progress-track {
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: #3b82f6;
+      border-radius: 999px;
+      width: 0%;
+      transition: width 0.3s ease, background-color 0.3s ease;
+    }
+
+    .timer-footer { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-subtle); }
+
+    /* 今日統計網格 */
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+
+    .stat-box {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 8px;
+      text-align: center;
+    }
+
+    .stat-label { font-size: 0.68rem; color: var(--text-muted); margin-bottom: 2px; }
+    .stat-val { font-size: 0.85rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; color: #fff; }
+
+    /* 按鈕 */
+    .btn-group { display: flex; flex-direction: column; gap: 8px; }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 11px 16px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: background 0.15s ease;
+    }
+
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-primary.resume { background: var(--success); }
+    .btn-primary.resume:hover { background: var(--success-hover); }
+
+    .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 9px 12px;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+
+    .btn-secondary:hover { background: rgba(255, 255, 255, 0.1); }
+
+    .win-footer {
+      border-top: 1px solid var(--border);
+      padding-top: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .footer-links { display: flex; gap: 12px; }
+
+    .footer-link {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: color 0.15s ease;
+    }
+
+    .footer-link:hover { color: #fff; }
+
+    /* 45 分鐘健康休息彈窗 Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(8px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 16px;
+    }
+
+    .modal-overlay.active { display: flex; }
+
+    .break-dialog {
+      width: 100%;
+      max-width: 440px;
+      background: #111827;
+      border: 1px solid rgba(139, 92, 246, 0.4);
+      border-radius: 12px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: 0 25px 50px -12px rgba(139, 92, 246, 0.25);
+    }
+
+    .break-title { font-size: 1.15rem; font-weight: 700; color: #c4b5fd; text-align: center; }
+    .break-desc { font-size: 0.82rem; color: var(--text-muted); line-height: 1.6; }
+    .break-desc b { color: #fff; }
+    .break-actions { display: flex; flex-direction: column; gap: 8px; }
+
+    .btn-complete {
+      background: var(--success);
+      color: #fff;
+      border: none;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .btn-complete:hover { background: var(--success-hover); }
+
+    /* 設定 Dialog */
+    .settings-dialog {
+      width: 100%;
+      max-width: 420px;
+      background: #111827;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .form-group { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; }
+    .form-input {
+      width: 70px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      color: #fff;
+      padding: 4px 8px;
+      border-radius: 6px;
+      text-align: center;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Windows 11 工作列 */
+    .win11-taskbar {
+      height: 48px;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(16px);
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      z-index: 50;
+    }
+
+    .taskbar-start {
+      width: 34px;
+      height: 34px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .taskbar-tray {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .tray-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .tray-dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; }
+
+    /* 桌面 Toast 通知 */
+    .toast-popup {
+      position: fixed;
+      bottom: 60px;
+      right: 20px;
+      width: 340px;
+      background: rgba(17, 24, 39, 0.95);
+      border: 1px solid #3b82f6;
+      border-radius: 10px;
+      padding: 14px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(12px);
+      display: none;
+      gap: 10px;
+      z-index: 90;
+    }
+
+    .toast-popup.active { display: flex; }
+  </style>
+</head>
+<body>
+
+  <!-- 頂部模擬與測試工具列 -->
+  <div class="sim-bar">
+    <div class="sim-controls">
+      <span>測試倍速：</span>
+      <button class="sim-btn active" onclick="setSpeed(1, this)">1x (實時)</button>
+      <button class="sim-btn" onclick="setSpeed(10, this)">10x</button>
+      <button class="sim-btn" onclick="setSpeed(60, this)">60x (1秒=1分)</button>
+      <button class="sim-btn" onclick="setSpeed(300, this)">300x (極速)</button>
+    </div>
+
+    <div class="sim-controls">
+      <span>事件注射：</span>
+      <button class="sim-btn" onclick="injectActivity()">模擬鍵盤/滑鼠</button>
+      <button class="sim-btn" onclick="injectPhone()">看手機3分 (容錯)</button>
+      <button class="sim-btn" onclick="injectIdle(8)">一般閒置8分</button>
+      <button class="sim-btn" onclick="injectIdle(16)">長時間閒置16分</button>
+      <button class="sim-btn" onclick="toggleLock(this)">鎖定螢幕 (Win+L)</button>
+    </div>
+  </div>
+
+  <!-- 桌面中央主視窗 -->
+  <div class="desktop-area">
+    <div class="win11-window" id="mainWindow">
+      <!-- 標題列 -->
+      <div class="win11-titlebar">
+        <div class="win11-title">
+          <div class="win11-icon"><div></div><div></div><div></div><div></div></div>
+          <span>Windows 11 健康休息提醒工具</span>
+        </div>
+        <div class="win11-actions">
+          <button class="win11-btn" onclick="minimizeWindow()" title="縮小至系統匣">&#8722;</button>
+          <button class="win11-btn" title="最大化">&#9633;</button>
+          <button class="win11-btn close" onclick="minimizeWindow()" title="關閉（縮小至系統匣）">&#10005;</button>
+        </div>
+      </div>
+
+      <!-- 視窗內容 -->
+      <div class="win11-body">
+        <div class="status-row">
+          <div class="app-name">💻 電腦使用健康監護</div>
+          <div class="badge-status" id="stateBadge">累積活動中</div>
+        </div>
+
+        <div class="timer-card">
+          <div class="timer-header">
+            <span class="timer-title">本輪有效電腦活動時間</span>
+            <span class="timer-target" id="targetLabel">目標: 45 分鐘</span>
+          </div>
+
+          <div class="timer-main">
+            <div class="time-digits" id="cycleDigits">00:00:00</div>
+            <div class="time-rem-box">
+              <div class="time-rem-label">距離下次提醒</div>
+              <div class="time-rem-digits" id="remDigits">45:00</div>
+            </div>
+          </div>
+
+          <div class="progress-track">
+            <div class="progress-fill" id="progressFill"></div>
+          </div>
+
+          <div class="timer-footer">
+            <span id="percentLabel">進度: 0%</span>
+            <span>容錯門檻: 5 分鐘閒置保留</span>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-label">今日總活動時間</div>
+            <div class="stat-val" id="todayActiveDigits">00:00:00</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">今日提醒次數</div>
+            <div class="stat-val" id="todayRemindersCount">0 次</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">今日完成休息</div>
+            <div class="stat-val" style="color: #34d399;" id="todayBreaksCount">0 次</div>
+          </div>
+        </div>
+
+        <div class="btn-group">
+          <button class="btn-primary" id="btnTogglePause" onclick="togglePause()">
+            <span>⏸ 暫停計時</span>
+          </button>
+
+          <div class="btn-row">
+            <button class="btn-secondary" onclick="markPhoneUse()" title="標記短暫使用手機，暫停累積並保留目前進度">
+              <span>📱 標記「短暫看手機」</span>
+            </button>
+            <button class="btn-secondary" id="btnResting" onclick="toggleResting()">
+              <span>🍵 我正在休息</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="win-footer">
+          <div class="footer-links">
+            <button class="footer-link" onclick="openSettings()">⚙ 偏好設定</button>
+            <button class="footer-link" onclick="openHistory()">📊 今日紀錄</button>
+          </div>
+          <button class="footer-link" onclick="minimizeWindow()" style="color: #94a3b8;">縮小至系統匣</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Windows 11 Toast 系統通知 -->
+  <div class="toast-popup" id="toastPopup">
+    <div style="font-size: 1.4rem;">🔔</div>
+    <div style="flex: 1;">
+      <div style="font-size: 0.8rem; font-weight: 700; color: #fff;">休息一下，照顧自己的健康</div>
+      <div style="font-size: 0.72rem; color: #cbd5e1; margin-top: 2px;">
+        您已累積 45 分鐘有效電腦活動時間。請起身走動、伸展肩頸並補充水分。
+      </div>
+    </div>
+    <button onclick="closeToast()" style="background: transparent; border: none; color: #94a3b8; cursor: pointer;">✕</button>
+  </div>
+
+  <!-- 45 分鐘健康休息桌面彈出視窗 (5 大按鈕) -->
+  <div class="modal-overlay" id="breakModal">
+    <div class="break-dialog">
+      <div class="break-title">🌿 該起身休息一下了！</div>
+      <div class="break-desc">
+        您已連續累積 <b id="breakActiveText">45:00</b> 的實際電腦活動時間。<br><br>
+        長時間維持固定姿勢容易造成肩頸僵硬與眼睛疲勞。<br>
+        請起身活動 3~5 分鐘、向窗外遠眺、做做深呼吸並喝一杯水。
+      </div>
+
+      <div class="break-actions">
+        <!-- 按鈕 1：已完成休息 -->
+        <button class="btn-complete" onclick="actionBreakCompleted()">
+          ✓ 我已完成健康休息（開始新一輪）
+        </button>
+
+        <div class="btn-row">
+          <!-- 按鈕 2：稍後提醒 -->
+          <button class="btn-secondary" onclick="actionSnooze()">
+            ⏰ 稍後 5 分鐘提醒
+          </button>
+          <!-- 按鈕 3：我正在休息 -->
+          <button class="btn-secondary" onclick="actionRestingNow()">
+            🍵 我正在休息中
+          </button>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; margin-top: 4px; font-size: 0.75rem;">
+          <!-- 按鈕 5：暫停提醒 -->
+          <button class="footer-link" onclick="actionPauseReminder()" style="color: #fbbf24;">⏸ 暫停提醒</button>
+          <!-- 按鈕 4：關閉視窗 (保留待處置) -->
+          <button class="footer-link" onclick="actionDismissOnly()">✕ 僅關閉視窗 (保留待處置)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 偏好設定 Modal -->
+  <div class="modal-overlay" id="settingsModal">
+    <div class="settings-dialog">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+        <h3 style="font-size: 0.95rem; font-weight: 700;">⚙ 偏好設定</h3>
+        <button class="footer-link" onclick="closeSettings()">✕</button>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div class="form-group">
+          <span>提醒間隔時間 (分鐘):</span>
+          <input type="number" id="cfgInterval" class="form-input" value="45" min="5" max="180">
+        </div>
+        <div class="form-group">
+          <span>短暫閒置容錯門檻 (分鐘):</span>
+          <input type="number" id="cfgShortIdle" class="form-input" value="5" min="1" max="30">
+        </div>
+        <div class="form-group">
+          <span>長時間閒置門檻 (分鐘):</span>
+          <input type="number" id="cfgLongIdle" class="form-input" value="15" min="5" max="60">
+        </div>
+        <div class="form-group">
+          <span>稍後提醒延後時間 (分鐘):</span>
+          <input type="number" id="cfgSnooze" class="form-input" value="5" min="1" max="30">
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--border); padding-top: 12px;">
+        <button class="btn-secondary" onclick="closeSettings()">取消</button>
+        <button class="btn-primary" style="padding: 6px 14px;" onclick="saveSettings()">儲存設定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 今日歷史紀錄 Modal -->
+  <div class="modal-overlay" id="historyModal">
+    <div class="settings-dialog">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+        <h3 style="font-size: 0.95rem; font-weight: 700;">📊 今日使用與健康紀錄</h3>
+        <button class="footer-link" onclick="closeHistory()">✕</button>
+      </div>
+
+      <div style="font-size: 0.8rem; line-height: 1.8; color: var(--text-muted);" id="historyContent"></div>
+
+      <div style="display: flex; justify-content: flex-end; border-top: 1px solid var(--border); padding-top: 12px;">
+        <button class="btn-secondary" onclick="closeHistory()">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Windows 11 工作列 -->
+  <div class="win11-taskbar">
+    <div class="taskbar-start" title="開始功能表">
+      <div class="win11-icon"><div></div><div></div><div></div><div></div></div>
+    </div>
+
+    <div class="taskbar-tray">
+      <div class="tray-icon" onclick="restoreWindow()" title="Windows 11 健康休息提醒工具 - 點擊喚出主視窗">
+        <div class="tray-dot" id="trayDot"></div>
+      </div>
+      <div style="text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; line-height: 1.2;">
+        <div id="clockTime">00:00</div>
+        <div style="font-size: 0.65rem; color: var(--text-subtle);" id="clockDate">2026/10/26</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 核心 JavaScript 引擎 -->
+  <script>
+    const STATE_MAP = {
+      ACTIVE: { text: "累積活動中", bg: "rgba(16, 185, 129, 0.15)", col: "#34d399", dot: "#10b981" },
+      SHORT_IDLE: { text: "短暫閒置 (容錯保留)", bg: "rgba(59, 130, 246, 0.15)", col: "#60a5fa", dot: "#3b82f6" },
+      INACTIVE: { text: "暫停累積 (一般閒置)", bg: "rgba(245, 158, 11, 0.15)", col: "#fbbf24", dot: "#f59e0b" },
+      LONG_IDLE: { text: "長時間閒置 (已記錄)", bg: "rgba(239, 68, 68, 0.15)", col: "#f87171", dot: "#ef4444" },
+      BREAK_DUE: { text: "已達 45 分鐘！請休息", bg: "rgba(139, 92, 246, 0.2)", col: "#c4b5fd", dot: "#8b5cf6" },
+      BREAK_PAUSED: { text: "休息中 (進度保留)", bg: "rgba(6, 182, 212, 0.15)", col: "#22d3ee", dot: "#06b6d4" },
+      PAUSED: { text: "手動暫停中", bg: "rgba(100, 116, 139, 0.2)", col: "#94a3b8", dot: "#64748b" },
+      LOCKED: { text: "Windows 已鎖定", bg: "rgba(100, 116, 139, 0.3)", col: "#cbd5e1", dot: "#64748b" }
+    };
+
+    let config = {
+      breakIntervalMin: 45,
+      shortIdleMin: 5,
+      longIdleMin: 15,
+      snoozeMin: 5,
+      burstWindowSec: 2.0
+    };
+
+    let state = "ACTIVE";
+    let cycleActiveSec = 0.0;
+    let todayActiveSec = 0.0;
+    let todayReminders = 0;
+    let todayBreaks = 0;
+    let todaySnoozes = 0;
+    let todayLongIdles = 0;
+
+    let lastActivityTime = performance.now() / 1000;
+    let snoozeUntil = null;
+    let speedMultiplier = 1;
+
+    function formatHMS(seconds) {
+      const s = Math.floor(Math.max(0, seconds));
+      const hh = String(Math.floor(s / 3600)).padStart(2, '0');
+      const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+      const ss = String(s % 60).padStart(2, '0');
+      return `${hh}:${mm}:${ss}`;
+    }
+
+    function formatMS(seconds) {
+      const s = Math.floor(Math.max(0, seconds));
+      const mm = String(Math.floor(s / 60)).padStart(2, '0');
+      const ss = String(s % 60).padStart(2, '0');
+      return `${mm}:${ss}`;
+    }
+
+    // 溫和提示音 (Web Audio API 合成)
+    function playBeep() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.3);
+      } catch (e) {}
+    }
+
+    // 使用者活動回報
+    function reportActivity() {
+      const now = performance.now() / 1000;
+      if (["LOCKED", "PAUSED", "BREAK_PAUSED", "BREAK_DUE"].includes(state)) {
+        lastActivityTime = now;
+        return;
+      }
+
+      const interval = now - lastActivityTime;
+      if (state === "ACTIVE") {
+        if (interval <= config.burstWindowSec) {
+          cycleActiveSec += interval;
+          todayActiveSec += interval;
+          if (cycleActiveSec >= config.breakIntervalMin * 60) {
+            triggerBreak();
+          }
+        }
+      } else {
+        // 從閒置接續原進度
+        state = "ACTIVE";
+      }
+      lastActivityTime = now;
+    }
+
+    function tick() {
+      const now = performance.now() / 1000;
+      const idleSec = now - lastActivityTime;
+      const shortTh = config.shortIdleMin * 60;
+      const longTh = config.longIdleMin * 60;
+
+      if (snoozeUntil && now >= snoozeUntil) {
+        snoozeUntil = null;
+        if (!["LOCKED", "PAUSED"].includes(state)) {
+          triggerBreak();
+          return;
+        }
+      }
+
+      if (state === "ACTIVE") {
+        if (idleSec > config.burstWindowSec && idleSec < shortTh) {
+          state = "SHORT_IDLE";
+        } else if (idleSec >= shortTh && idleSec < longTh) {
+          state = "INACTIVE";
+        } else if (idleSec >= longTh) {
+          state = "LONG_IDLE";
+          todayLongIdles++;
+        }
+      } else if (state === "SHORT_IDLE" && idleSec >= shortTh) {
+        state = "INACTIVE";
+      } else if (state === "INACTIVE" && idleSec >= longTh) {
+        state = "LONG_IDLE";
+        todayLongIdles++;
+      }
+
+      updateUI();
+    }
+
+    function triggerBreak() {
+      if (state === "BREAK_DUE") return;
+      state = "BREAK_DUE";
+      todayReminders++;
+      playBeep();
+
+      if ("Notification" in window && Notification.permission === "granted") {
+        try {
+          new Notification("休息一下，照顧自己的健康", {
+            body: `你已累積 ${Math.floor(cycleActiveSec / 60)} 分鐘的有效電腦活動時間。請起身走動並補充水分。`
+          });
+        } catch (e) {}
+      }
+
+      document.getElementById("breakActiveText").innerText = formatHMS(cycleActiveSec);
+      document.getElementById("breakModal").classList.add("active");
+      document.getElementById("toastPopup").classList.add("active");
+      updateUI();
+    }
+
+    function actionBreakCompleted() {
+      cycleActiveSec = 0;
+      todayBreaks++;
+      state = "ACTIVE";
+      lastActivityTime = performance.now() / 1000;
+      document.getElementById("breakModal").classList.remove("active");
+      document.getElementById("toastPopup").classList.remove("active");
+      updateUI();
+    }
+
+    function actionSnooze() {
+      snoozeUntil = (performance.now() / 1000) + (config.snoozeMin * 60);
+      todaySnoozes++;
+      state = "SHORT_IDLE";
+      document.getElementById("breakModal").classList.remove("active");
+      document.getElementById("toastPopup").classList.remove("active");
+      updateUI();
+    }
+
+    function actionRestingNow() {
+      state = "BREAK_PAUSED";
+      document.getElementById("breakModal").classList.remove("active");
+      document.getElementById("toastPopup").classList.remove("active");
+      updateUI();
+    }
+
+    function actionDismissOnly() {
+      document.getElementById("breakModal").classList.remove("active");
+      document.getElementById("toastPopup").classList.remove("active");
+      updateUI();
+    }
+
+    function actionPauseReminder() {
+      state = "PAUSED";
+      document.getElementById("breakModal").classList.remove("active");
+      document.getElementById("toastPopup").classList.remove("active");
+      updateUI();
+    }
+
+    function togglePause() {
+      if (state === "PAUSED") {
+        state = "ACTIVE";
+        lastActivityTime = performance.now() / 1000;
+      } else {
+        state = "PAUSED";
+      }
+      updateUI();
+    }
+
+    function markPhoneUse() {
+      if (state === "ACTIVE" || state === "SHORT_IDLE") {
+        state = "SHORT_IDLE";
+        alert("已為您標記短暫使用手機！\n累積進度已安全保留，不會因為看手機而清除。");
+        updateUI();
+      }
+    }
+
+    function toggleResting() {
+      if (state === "BREAK_PAUSED") {
+        state = "ACTIVE";
+        lastActivityTime = performance.now() / 1000;
+      } else {
+        state = "BREAK_PAUSED";
+      }
+      updateUI();
+    }
+
+    function minimizeWindow() { document.getElementById("mainWindow").style.display = "none"; }
+    function restoreWindow() { document.getElementById("mainWindow").style.display = "flex"; }
+    function closeToast() { document.getElementById("toastPopup").classList.remove("active"); }
+
+    function updateUI() {
+      const sInfo = STATE_MAP[state] || STATE_MAP.ACTIVE;
+      const badge = document.getElementById("stateBadge");
+      badge.innerText = sInfo.text;
+      badge.style.background = sInfo.bg;
+      badge.style.color = sInfo.col;
+      badge.style.borderColor = sInfo.col;
+
+      document.getElementById("trayDot").style.background = sInfo.dot;
+      document.getElementById("cycleDigits").innerText = formatHMS(cycleActiveSec);
+      const targetSec = config.breakIntervalMin * 60;
+      const remSec = Math.max(0, targetSec - cycleActiveSec);
+      document.getElementById("remDigits").innerText = formatMS(remSec);
+
+      const pct = Math.min(100, Math.round((cycleActiveSec / targetSec) * 100));
+      document.getElementById("percentLabel").innerText = `進度: ${pct}%`;
+      const fill = document.getElementById("progressFill");
+      fill.style.width = `${pct}%`;
+      fill.style.background = pct >= 100 ? "#8b5cf6" : (pct >= 80 ? "#f59e0b" : "#3b82f6");
+
+      document.getElementById("todayActiveDigits").innerText = formatHMS(todayActiveSec);
+      document.getElementById("todayRemindersCount").innerText = `${todayReminders} 次`;
+      document.getElementById("todayBreaksCount").innerText = `${todayBreaks} 次`;
+
+      const btnPause = document.getElementById("btnTogglePause");
+      if (state === "PAUSED") {
+        btnPause.innerHTML = "▶ 恢復計時";
+        btnPause.classList.add("resume");
+      } else {
+        btnPause.innerHTML = "⏸ 暫停計時";
+        btnPause.classList.remove("resume");
+      }
+
+      const btnRest = document.getElementById("btnResting");
+      btnRest.innerHTML = state === "BREAK_PAUSED" ? "✓ 結束休息，接續工作" : "🍵 我正在休息";
+    }
+
+    function setSpeed(mult, btn) {
+      speedMultiplier = mult;
+      document.querySelectorAll(".sim-controls .sim-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      restartLoop();
+    }
+
+    function injectActivity() { reportActivity(); updateUI(); }
+    function injectPhone() {
+      for (let i = 0; i < 180; i++) tick();
+      alert("已模擬短暫看手機 3 分鐘 (180 秒無輸入)！\n累積進度完整保留，閒置未計入。");
+    }
+    function injectIdle(min) { for (let i = 0; i < min * 60; i++) tick(); }
+
+    let isLocked = false;
+    function toggleLock(btn) {
+      isLocked = !isLocked;
+      if (isLocked) {
+        state = "LOCKED";
+        btn.innerText = "解鎖工作階段";
+        btn.classList.add("active");
+      } else {
+        state = "ACTIVE";
+        lastActivityTime = performance.now() / 1000;
+        btn.innerText = "鎖定螢幕 (Win+L)";
+        btn.classList.remove("active");
+      }
+      updateUI();
+    }
+
+    function openSettings() {
+      document.getElementById("cfgInterval").value = config.breakIntervalMin;
+      document.getElementById("cfgShortIdle").value = config.shortIdleMin;
+      document.getElementById("cfgLongIdle").value = config.longIdleMin;
+      document.getElementById("cfgSnooze").value = config.snoozeMin;
+      document.getElementById("settingsModal").classList.add("active");
+    }
+    function closeSettings() { document.getElementById("settingsModal").classList.remove("active"); }
+    function saveSettings() {
+      const sIdle = Number(document.getElementById("cfgShortIdle").value);
+      const lIdle = Number(document.getElementById("cfgLongIdle").value);
+      if (lIdle < sIdle) {
+        alert("長時間閒置門檻不得小於短暫閒置門檻！");
+        return;
+      }
+      config.breakIntervalMin = Number(document.getElementById("cfgInterval").value);
+      config.shortIdleMin = sIdle;
+      config.longIdleMin = lIdle;
+      config.snoozeMin = Number(document.getElementById("cfgSnooze").value);
+      document.getElementById("targetLabel").innerText = `目標: ${config.breakIntervalMin} 分鐘`;
+      closeSettings();
+      updateUI();
+    }
+
+    function openHistory() {
+      document.getElementById("historyContent").innerHTML = `
+        <div>今日累積有效時間：<b>${formatHMS(todayActiveSec)}</b></div>
+        <div>觸發提醒次數：<b>${todayReminders} 次</b></div>
+        <div>完成健康休息次數：<b>${todayBreaks} 次</b></div>
+        <div>稍後提醒延後次數：<b>${todaySnoozes} 次</b></div>
+        <div>長時間閒置事件 (&gt;15分)：<b>${todayLongIdles} 次</b></div>
+      `;
+      document.getElementById("historyModal").classList.add("active");
+    }
+    function closeHistory() { document.getElementById("historyModal").classList.remove("active"); }
+
+    // 真實鍵盤與滑鼠事件監聽
+    window.addEventListener("keydown", () => reportActivity());
+    window.addEventListener("mousemove", () => reportActivity());
+    window.addEventListener("mousedown", () => reportActivity());
+    window.addEventListener("wheel", () => reportActivity());
+
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+
+    let loopId = null;
+    function restartLoop() {
+      if (loopId) clearInterval(loopId);
+      const ms = Math.max(20, Math.floor(1000 / speedMultiplier));
+      const step = speedMultiplier > 50 ? Math.floor(speedMultiplier / 20) : 1;
+      loopId = setInterval(() => { for (let i = 0; i < step; i++) tick(); }, ms);
+    }
+
+    setInterval(() => {
+      const d = new Date();
+      document.getElementById("clockTime").innerText = d.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
+      document.getElementById("clockDate").innerText = d.toLocaleDateString('zh-TW');
+    }, 1000);
+
+    restartLoop();
+    updateUI();
+  </script>
+</body>
+</html>
